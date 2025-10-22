@@ -8,7 +8,7 @@
     "analyze": "ts-node src/main.ts part1",
     "generate": "ts-node src/main.ts part2",
     "all": "ts-node src/main.ts both",
-    "visualize": "ts-node src/visualization/main.ts"
+    "report": "npm run analyze && npm run generate && ts-node src/generateReport.ts"
   },
   "keywords": [],
   "author": "",

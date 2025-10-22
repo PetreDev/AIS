@@ -156,7 +156,9 @@ export class DataFetcher {
       const parts = passwordLine.split(",");
       const strengthLevel = parts[1];
       if (strengthLevel) {
-        distribution[strengthLevel] = (distribution[strengthLevel] || 0) + 1;
+        const level = parseInt(strengthLevel);
+        const levelName = this.getStrengthLevelName(level);
+        distribution[levelName] = (distribution[levelName] || 0) + 1;
       }
     });
 
@@ -174,6 +176,12 @@ export class DataFetcher {
       4: "Strong",
       5: "Very Strong",
     };
+
+    // Handle edge cases
+    if (isNaN(level) || level < 1 || level > 5) {
+      return "Unknown";
+    }
+
     return names[level as keyof typeof names] || "Unknown";
   }
 

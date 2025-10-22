@@ -1,5 +1,6 @@
 import { Part1PasswordAnalysis } from "./part1-analysis";
 import { Part2PasswordGeneration } from "./part2-password-generation";
+import { DataFetcher } from "./data/dataFetcher";
 import * as fs from "fs";
 
 /**
@@ -10,32 +11,42 @@ async function main() {
   const args = process.argv.slice(2);
   const command = args[0] || "part1";
 
-  // Ensure CSVs exist
+  // Check if CSV files exist, if not, fetch data automatically
   const csvFiles = fs
     .readdirSync(".")
     .filter((file) => file.startsWith("pwlds_") && file.endsWith(".csv"))
     .sort();
 
   if (csvFiles.length === 0) {
-    console.log("❌ No pwlds CSV files found in the current directory.");
-    console.log("Please download the password database CSV files first.");
-    console.log("\nDownload commands:");
     console.log(
-      "curl -o pwlds_very_weak.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_very_weak.csv"
+      "📥 No pwlds CSV files found. Automatically fetching data from GitHub..."
     );
-    console.log(
-      "curl -o pwlds_weak.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_weak.csv"
-    );
-    console.log(
-      "curl -o pwlds_average.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_average.csv"
-    );
-    console.log(
-      "curl -o pwlds_strong.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_strong.csv"
-    );
-    console.log(
-      "curl -o pwlds_very_strong.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_very_strong.csv"
-    );
-    return;
+    console.log("🌐 Source: https://github.com/infinitode/pwlds");
+
+    try {
+      const dataFetcher = new DataFetcher();
+      await dataFetcher.fetchAndCombineData();
+      console.log("✅ Data successfully fetched and combined!");
+    } catch (error) {
+      console.error("❌ Error fetching data:", error);
+      console.log("\nManual download commands:");
+      console.log(
+        "curl -o pwlds_very_weak.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_very_weak.csv"
+      );
+      console.log(
+        "curl -o pwlds_weak.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_weak.csv"
+      );
+      console.log(
+        "curl -o pwlds_average.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_average.csv"
+      );
+      console.log(
+        "curl -o pwlds_strong.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_strong.csv"
+      );
+      console.log(
+        "curl -o pwlds_very_strong.csv https://raw.githubusercontent.com/infinitode/pwlds/main/pwlds_very_strong.csv"
+      );
+      return;
+    }
   }
 
   switch (command.toLowerCase()) {
