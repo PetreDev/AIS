@@ -3,7 +3,12 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "ts-node src/main.ts",
+    "analyze": "ts-node src/main.ts part1",
+    "generate": "ts-node src/main.ts part2",
+    "all": "ts-node src/main.ts both",
+    "visualize": "ts-node src/visualization/main.ts"
   },
   "keywords": [],
   "author": "",
@@ -15,5 +20,12 @@
     "prettier": "^3.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "@types/pdfkit": "^0.17.3",
+    "canvas": "^3.2.0",
+    "chart.js": "^4.5.1",
+    "csv-parser": "^3.2.0",
+    "pdfkit": "^0.17.2"
   }
 }
