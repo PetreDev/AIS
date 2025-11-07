@@ -10,6 +10,16 @@ import { DataFetcher } from "./data/dataFetcher";
  * Part 2: Password Generation Using Computational Intelligence Approaches
  * Implements both Random Generator with Heuristics and Markov Chain Generator
  */
+export const DEFAULT_PASSWORD_CONFIG: PasswordGeneratorConfig = {
+  length: 10,
+  includeUppercase: true,
+  includeLowercase: true,
+  includeNumbers: false,
+  includeSymbols: true,
+  avoidSimilar: false,
+  avoidAmbiguous: false,
+};
+
 export class Part2PasswordGeneration {
   private randomGenerator: RandomPasswordGenerator;
   private markovGenerator: MarkovPasswordGenerator;
@@ -113,15 +123,7 @@ export class Part2PasswordGeneration {
       this.markovGenerator.trainModel(trainingPasswords, 1); // First-order Markov model
 
       // Configuration for password generation
-      const config: PasswordGeneratorConfig = {
-        length: 12,
-        includeUppercase: true,
-        includeLowercase: true,
-        includeNumbers: true,
-        includeSymbols: true,
-        avoidSimilar: true,
-        avoidAmbiguous: false,
-      };
+      const config: PasswordGeneratorConfig = { ...DEFAULT_PASSWORD_CONFIG };
 
       console.log(`\n⚙️ Password generation configuration:`);
       console.log(`  • Length: ${config.length}`);
@@ -160,7 +162,12 @@ export class Part2PasswordGeneration {
       this.displayComparisonResults(comparison);
 
       // Generate detailed report
-      this.generateDetailedReport(comparison, randomPasswords, markovPasswords);
+      this.generateDetailedReport(
+        comparison,
+        randomPasswords,
+        markovPasswords,
+        config
+      );
 
       console.log(`\n✅ Password generation analysis complete!`);
     } catch (error) {
@@ -315,15 +322,25 @@ export class Part2PasswordGeneration {
   private generateDetailedReport(
     comparison: any,
     randomPasswords: GeneratedPassword[],
-    markovPasswords: GeneratedPassword[]
+    markovPasswords: GeneratedPassword[],
+    config: PasswordGeneratorConfig
   ): void {
+    const characterSet = [
+      config.includeUppercase ? "uppercase" : null,
+      config.includeLowercase ? "lowercase" : null,
+      config.includeNumbers ? "numbers" : null,
+      config.includeSymbols ? "symbols" : null,
+    ]
+      .filter(Boolean)
+      .join(", ");
+
     const report = {
       timestamp: new Date().toISOString(),
       configuration: {
-        passwordLength: 12,
-        characterSet: "uppercase, lowercase, numbers, symbols",
-        avoidSimilar: true,
-        avoidAmbiguous: false,
+        passwordLength: config.length,
+        characterSet,
+        avoidSimilar: config.avoidSimilar,
+        avoidAmbiguous: config.avoidAmbiguous,
       },
       trainingData: {
         totalPasswords: randomPasswords.length + markovPasswords.length,

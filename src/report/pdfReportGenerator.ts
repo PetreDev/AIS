@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import PDFDocument from "pdfkit";
 import { createCanvas } from "canvas";
-import { PasswordAnalysis } from "../types";
+import { PasswordAnalysis, PasswordGeneratorConfig } from "../types";
 import { ComparisonAnalysis } from "../analysis/passwordComparison";
 import { GeneratedPassword } from "../types";
 
@@ -18,6 +18,7 @@ export class PDFReportGenerator {
   private margin: number = 50;
   private randomPasswords: GeneratedPassword[] = [];
   private markovPasswords: GeneratedPassword[] = [];
+  private passwordConfig: PasswordGeneratorConfig | null = null;
 
   constructor() {
     this.doc = new (PDFDocument as any)({
@@ -38,7 +39,8 @@ export class PDFReportGenerator {
     part1Analysis: PasswordAnalysis,
     part2Comparison: ComparisonAnalysis,
     randomPasswords: GeneratedPassword[],
-    markovPasswords: GeneratedPassword[]
+    markovPasswords: GeneratedPassword[],
+    config: PasswordGeneratorConfig
   ): Promise<string> {
     const outputPath = "password_analysis_complete_report.pdf";
 
@@ -47,6 +49,7 @@ export class PDFReportGenerator {
     // Store password data for use in appendices
     this.randomPasswords = randomPasswords;
     this.markovPasswords = markovPasswords;
+    this.passwordConfig = config;
 
     // Pipe the PDF to a file
     const stream = fs.createWriteStream(outputPath);
@@ -59,7 +62,8 @@ export class PDFReportGenerator {
     await this.generatePart2Analysis(
       part2Comparison,
       randomPasswords,
-      markovPasswords
+      markovPasswords,
+      config
     );
     await this.generateConclusions(part2Comparison);
     await this.generateAppendices();
@@ -293,7 +297,8 @@ export class PDFReportGenerator {
   private async generatePart2Analysis(
     comparison: ComparisonAnalysis,
     randomPasswords: GeneratedPassword[],
-    markovPasswords: GeneratedPassword[]
+    markovPasswords: GeneratedPassword[],
+    config: PasswordGeneratorConfig
   ): Promise<void> {
     this.doc.fontSize(20).font("Helvetica-Bold");
     this.doc.text(
@@ -315,16 +320,27 @@ export class PDFReportGenerator {
     this.doc.fontSize(12).font("Helvetica");
     this.doc.text("Configuration:", this.margin, this.currentY);
     this.currentY += 20;
-    this.doc.text("• Length: 12 characters", this.margin + 20, this.currentY);
-    this.currentY += 15;
     this.doc.text(
-      "• Character set: uppercase, lowercase, numbers, symbols",
+      `• Length: ${config.length} characters`,
       this.margin + 20,
       this.currentY
     );
     this.currentY += 15;
     this.doc.text(
-      "• Avoid similar characters: enabled",
+      `• Character set: ${this.formatCharacterSet(config)}`,
+      this.margin + 20,
+      this.currentY
+    );
+    this.currentY += 15;
+    this.doc.text(
+      `• Avoid similar characters: ${config.avoidSimilar ? "enabled" : "disabled"}`,
+      this.margin + 20,
+      this.currentY
+    );
+    this.currentY += 30;
+
+    this.doc.text(
+      `• Avoid ambiguous characters: ${config.avoidAmbiguous ? "enabled" : "disabled"}`,
       this.margin + 20,
       this.currentY
     );
@@ -1085,6 +1101,24 @@ export class PDFReportGenerator {
     if (this.currentY + requiredSpace > this.pageHeight - this.margin) {
       this.addNewPage();
     }
+  }
+
+  private formatCharacterSet(config: PasswordGeneratorConfig): string {
+    const parts = [] as string[];
+    if (config.includeUppercase) {
+      parts.push("uppercase");
+    }
+    if (config.includeLowercase) {
+      parts.push("lowercase");
+    }
+    if (config.includeNumbers) {
+      parts.push("numbers");
+    }
+    if (config.includeSymbols) {
+      parts.push("symbols");
+    }
+
+    return parts.length > 0 ? parts.join(", ") : "custom character set";
   }
 
   /**

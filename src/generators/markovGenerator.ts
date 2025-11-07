@@ -13,6 +13,8 @@ export class MarkovPasswordGenerator {
   private startStates: Map<string, number> = new Map();
   private order: number = 1; // First-order Markov model (bigrams)
   private trainingData: string[] = [];
+  private readonly similarChars = "0O1lI";
+  private readonly ambiguousChars = "{}[]()/\\'\"`~,;.<>";
 
   /**
    * Train the Markov model on password database
@@ -99,7 +101,7 @@ export class MarkovPasswordGenerator {
 
     // Calculate security metrics
     const entropy = this.calculateEntropy(password);
-    const timeToCrack = this.calculateTimeToCrack(entropy);
+    const timeToCrack = this.calculateTimeToCrack(password, config);
     const strengthLevel = this.determineStrengthLevel(entropy);
 
     return {
@@ -194,6 +196,8 @@ export class MarkovPasswordGenerator {
   ): string {
     let improved = password;
 
+    improved = this.sanitizeToAllowedCharacters(improved, config);
+
     // Ensure at least one character from each required category
     improved = this.ensureCharacterCategories(improved, config);
 
@@ -215,47 +219,48 @@ export class MarkovPasswordGenerator {
     password: string,
     config: PasswordGeneratorConfig
   ): string {
-    let result = password;
-    const chars = result.split("");
+    const chars = password.split("");
 
-    // Check and add missing categories
-    if (config.includeUppercase && !chars.some((c) => this.isUppercase(c))) {
-      const randomPos = Math.floor(Math.random() * result.length);
-      const uppercaseChar = this.getRandomUppercase();
-      result =
-        result.substring(0, randomPos) +
-        uppercaseChar +
-        result.substring(randomPos + 1);
-    }
+    const ensureCategory = (
+      isRequired: boolean,
+      predicate: (char: string) => boolean,
+      poolProvider: () => string[]
+    ) => {
+      if (!isRequired) {
+        return;
+      }
+      if (chars.some((char) => predicate(char))) {
+        return;
+      }
+      if (chars.length === 0) {
+        return;
+      }
+      const index = Math.floor(Math.random() * chars.length);
+      chars[index] = this.getRandomFromChars(poolProvider(), config);
+    };
 
-    if (config.includeLowercase && !chars.some((c) => this.isLowercase(c))) {
-      const randomPos = Math.floor(Math.random() * result.length);
-      const lowercaseChar = this.getRandomLowercase();
-      result =
-        result.substring(0, randomPos) +
-        lowercaseChar +
-        result.substring(randomPos + 1);
-    }
+    ensureCategory(
+      config.includeUppercase,
+      (c) => this.isUppercase(c),
+      () => this.getUppercaseChars()
+    );
+    ensureCategory(
+      config.includeLowercase,
+      (c) => this.isLowercase(c),
+      () => this.getLowercaseChars()
+    );
+    ensureCategory(
+      config.includeNumbers,
+      (c) => this.isNumber(c),
+      () => this.getNumberChars()
+    );
+    ensureCategory(
+      config.includeSymbols,
+      (c) => this.isSymbol(c),
+      () => this.getSymbolChars()
+    );
 
-    if (config.includeNumbers && !chars.some((c) => this.isNumber(c))) {
-      const randomPos = Math.floor(Math.random() * result.length);
-      const numberChar = this.getRandomNumber();
-      result =
-        result.substring(0, randomPos) +
-        numberChar +
-        result.substring(randomPos + 1);
-    }
-
-    if (config.includeSymbols && !chars.some((c) => this.isSymbol(c))) {
-      const randomPos = Math.floor(Math.random() * result.length);
-      const symbolChar = this.getRandomSymbol();
-      result =
-        result.substring(0, randomPos) +
-        symbolChar +
-        result.substring(randomPos + 1);
-    }
-
-    return result;
+    return chars.join("");
   }
 
   /**
@@ -265,26 +270,85 @@ export class MarkovPasswordGenerator {
     password: string,
     config: PasswordGeneratorConfig
   ): string {
-    let result = password;
+    const chars = password.split("");
 
-    // Count current character types
     const counts = {
-      uppercase: result.split("").filter((c) => this.isUppercase(c)).length,
-      lowercase: result.split("").filter((c) => this.isLowercase(c)).length,
-      numbers: result.split("").filter((c) => this.isNumber(c)).length,
-      symbols: result.split("").filter((c) => this.isSymbol(c)).length,
+      uppercase: chars.filter((c) => this.isUppercase(c)).length,
+      lowercase: chars.filter((c) => this.isLowercase(c)).length,
+      numbers: chars.filter((c) => this.isNumber(c)).length,
+      symbols: chars.filter((c) => this.isSymbol(c)).length,
     };
 
-    // Add more characters if needed for security
-    if (config.includeSymbols && counts.symbols < 2) {
-      result += this.getRandomSymbol();
+    const minimums = {
+      uppercase: config.includeUppercase ? 1 : 0,
+      lowercase: config.includeLowercase ? 1 : 0,
+      numbers: config.includeNumbers ? 2 : 0,
+      symbols: config.includeSymbols ? 2 : 0,
+    };
+
+    const findReplacementIndex = (targetType: keyof typeof counts): number => {
+      const length = chars.length;
+
+      const canReplace = (index: number): boolean => {
+        const currentChar = chars[index];
+        if (currentChar === undefined) {
+          return false;
+        }
+        const currentType = this.getCharacterType(currentChar);
+        if (!currentType) return true;
+        if (currentType === targetType) return false;
+        return counts[currentType] - 1 >= minimums[currentType];
+      };
+
+      for (let attempt = 0; attempt < length * 2; attempt++) {
+        const index = Math.floor(Math.random() * length);
+        if (canReplace(index)) {
+          return index;
+        }
+      }
+
+      for (let index = 0; index < length; index++) {
+        if (canReplace(index)) {
+          return index;
+        }
+      }
+
+      return Math.floor(Math.random() * length);
+    };
+
+    const replaceChar = (
+      index: number,
+      newChar: string,
+      newType: keyof typeof counts
+    ) => {
+      const currentChar = chars[index];
+      if (currentChar !== undefined) {
+        const currentType = this.getCharacterType(currentChar);
+        if (currentType) {
+          counts[currentType] -= 1;
+        }
+      }
+      chars[index] = newChar;
+      counts[newType] += 1;
+    };
+
+    const ensureType = (type: keyof typeof counts, pool: string[]) => {
+      const required = minimums[type];
+      while (counts[type] < required) {
+        const index = findReplacementIndex(type);
+        replaceChar(index, this.getRandomFromChars(pool, config), type);
+      }
+    };
+
+    if (config.includeSymbols) {
+      ensureType("symbols", this.getSymbolChars());
     }
 
-    if (config.includeNumbers && counts.numbers < 2) {
-      result += this.getRandomNumber();
+    if (config.includeNumbers) {
+      ensureType("numbers", this.getNumberChars());
     }
 
-    return result;
+    return chars.join("");
   }
 
   /**
@@ -302,14 +366,97 @@ export class MarkovPasswordGenerator {
       const neededLength = Math.ceil(
         60 / Math.log2(this.getCharacterSetSize(config))
       );
-      const additionalLength = Math.max(0, neededLength - result.length);
-
-      for (let i = 0; i < additionalLength; i++) {
-        result += this.getRandomCharacter(config);
+      if (neededLength > result.length && result.length < config.length) {
+        const maxLength = Math.min(neededLength, config.length);
+        while (result.length < maxLength) {
+          result += this.getRandomCharacter(config);
+        }
       }
     }
 
-    return result;
+    return result.slice(0, config.length);
+  }
+
+  private sanitizeToAllowedCharacters(
+    password: string,
+    config: PasswordGeneratorConfig
+  ): string {
+    const allowedPool = this.buildAllowedCharacterPool(config);
+    if (allowedPool.length === 0) {
+      throw new Error(
+        "No allowed characters available for password generation"
+      );
+    }
+    const allowedSet = new Set(allowedPool);
+    const sanitized = password
+      .split("")
+      .map((char) =>
+        allowedSet.has(char) ? char : this.getRandomFromPool(allowedPool)
+      )
+      .join("");
+    return sanitized.slice(0, config.length);
+  }
+
+  private buildAllowedCharacterPool(config: PasswordGeneratorConfig): string[] {
+    let pool: string[] = [];
+    if (config.includeLowercase) {
+      pool = pool.concat(this.getLowercaseChars());
+    }
+    if (config.includeUppercase) {
+      pool = pool.concat(this.getUppercaseChars());
+    }
+    if (config.includeNumbers) {
+      pool = pool.concat(this.getNumberChars());
+    }
+    if (config.includeSymbols) {
+      pool = pool.concat(this.getSymbolChars());
+    }
+    if (pool.length === 0) {
+      pool = pool.concat(this.getLowercaseChars());
+    }
+    const filtered = this.filterCharsForConfig(pool, config);
+    return filtered.length > 0 ? filtered : [...pool];
+  }
+
+  private filterCharsForConfig(
+    chars: string[],
+    config: PasswordGeneratorConfig
+  ): string[] {
+    let filtered = [...chars];
+    if (config.avoidSimilar) {
+      filtered = filtered.filter((char) => !this.similarChars.includes(char));
+    }
+    if (config.avoidAmbiguous) {
+      filtered = filtered.filter((char) => !this.ambiguousChars.includes(char));
+    }
+    return filtered;
+  }
+
+  private getRandomFromPool(pool: string[]): string {
+    if (pool.length === 0) {
+      return "a";
+    }
+    const index = Math.floor(Math.random() * pool.length);
+    return pool[index] ?? pool[0] ?? "a";
+  }
+
+  private getRandomFromChars(
+    chars: string[],
+    config: PasswordGeneratorConfig
+  ): string {
+    const filtered = this.filterCharsForConfig(chars, config);
+    const pool = filtered.length > 0 ? filtered : [...chars];
+    return this.getRandomFromPool(pool);
+  }
+
+  private getCharacterType(
+    char: string
+  ): "uppercase" | "lowercase" | "numbers" | "symbols" | null {
+    if (this.isUppercase(char)) return "uppercase";
+    if (this.isLowercase(char)) return "lowercase";
+    if (this.isNumber(char)) return "numbers";
+    if (this.isSymbol(char)) return "symbols";
+    return null;
   }
 
   /**
@@ -339,8 +486,17 @@ export class MarkovPasswordGenerator {
   /**
    * Calculate time to crack at different attack speeds
    */
-  calculateTimeToCrack(entropy: number): SecurityMetrics["timeToCrack"] {
-    const combinations = Math.pow(2, entropy);
+  calculateTimeToCrack(
+    password: string,
+    config: PasswordGeneratorConfig
+  ): SecurityMetrics["timeToCrack"] {
+    const charsetSize = Math.max(
+      this.getCharacterSetSize(config),
+      this.getCharacterSetSizeFromPassword(password),
+      1
+    );
+
+    const combinations = Math.pow(charsetSize, password.length);
 
     const speeds = {
       slow: Math.pow(10, 6), // 10^6 attempts/s
@@ -378,10 +534,10 @@ export class MarkovPasswordGenerator {
    */
   private getCharacterSetSize(config: PasswordGeneratorConfig): number {
     let size = 0;
-    if (config.includeLowercase) size += 26;
-    if (config.includeUppercase) size += 26;
-    if (config.includeNumbers) size += 10;
-    if (config.includeSymbols) size += 32; // Common symbols
+    if (config.includeLowercase) size += this.getLowercaseChars().length;
+    if (config.includeUppercase) size += this.getUppercaseChars().length;
+    if (config.includeNumbers) size += this.getNumberChars().length;
+    if (config.includeSymbols) size += this.getSymbolChars().length;
     return size;
   }
 
@@ -397,14 +553,8 @@ export class MarkovPasswordGenerator {
    * Get random character based on configuration
    */
   private getRandomCharacter(config: PasswordGeneratorConfig): string {
-    const chars = [];
-    if (config.includeLowercase) chars.push(...this.getLowercaseChars());
-    if (config.includeUppercase) chars.push(...this.getUppercaseChars());
-    if (config.includeNumbers) chars.push(...this.getNumberChars());
-    if (config.includeSymbols) chars.push(...this.getSymbolChars());
-
-    const randomIndex = Math.floor(Math.random() * chars.length);
-    return chars[randomIndex] || "a";
+    const pool = this.buildAllowedCharacterPool(config);
+    return this.getRandomFromPool(pool);
   }
 
   /**

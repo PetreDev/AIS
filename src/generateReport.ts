@@ -1,5 +1,8 @@
 import { Part1PasswordAnalysis } from "./part1-analysis";
-import { Part2PasswordGeneration } from "./part2-password-generation";
+import {
+  Part2PasswordGeneration,
+  DEFAULT_PASSWORD_CONFIG,
+} from "./part2-password-generation";
 import { PDFReportGenerator } from "./report/pdfReportGenerator";
 import { DataFetcher } from "./data/dataFetcher";
 import * as fs from "fs";
@@ -37,15 +40,7 @@ async function generateCompleteReport(): Promise<void> {
     const part2Data = await dataFetcher.getData();
     part2Generator["markovGenerator"].trainModel(part2Data, 1);
 
-    const config = {
-      length: 12,
-      includeUppercase: true,
-      includeLowercase: true,
-      includeNumbers: true,
-      includeSymbols: true,
-      avoidSimilar: true,
-      avoidAmbiguous: false,
-    };
+    const config = { ...DEFAULT_PASSWORD_CONFIG };
 
     const randomPasswords = part2Generator[
       "randomGenerator"
@@ -71,7 +66,8 @@ async function generateCompleteReport(): Promise<void> {
       part1Analysis,
       comparison,
       randomPasswords,
-      markovPasswords
+      markovPasswords,
+      config
     );
 
     console.log(`✅ PDF report generated: ${reportPath}`);

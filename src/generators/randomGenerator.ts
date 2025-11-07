@@ -29,7 +29,7 @@ export class RandomPasswordGenerator {
 
     // Calculate security metrics
     const entropy = this.calculateEntropy(password);
-    const timeToCrack = this.calculateTimeToCrack(entropy);
+    const timeToCrack = this.calculateTimeToCrack(password, config);
     const strengthLevel = this.determineStrengthLevel(entropy);
 
     return {
@@ -228,7 +228,8 @@ export class RandomPasswordGenerator {
       const neededLength = Math.ceil(
         60 / Math.log2(this.getCharacterSetSize(config))
       );
-      const additionalLength = Math.max(0, neededLength - result.length);
+      const targetLength = Math.min(config.length, neededLength);
+      const additionalLength = Math.max(0, targetLength - result.length);
 
       let charset = "";
       if (config.includeLowercase) charset += this.lowercase;
@@ -241,7 +242,7 @@ export class RandomPasswordGenerator {
       }
     }
 
-    return result;
+    return result.slice(0, config.length);
   }
 
   /**
@@ -271,8 +272,17 @@ export class RandomPasswordGenerator {
   /**
    * Calculate time to crack at different attack speeds
    */
-  calculateTimeToCrack(entropy: number): SecurityMetrics["timeToCrack"] {
-    const combinations = Math.pow(2, entropy);
+  calculateTimeToCrack(
+    password: string,
+    config: PasswordGeneratorConfig
+  ): SecurityMetrics["timeToCrack"] {
+    const charsetSize = Math.max(
+      this.getCharacterSetSize(config),
+      this.getCharacterSetSizeFromPassword(password),
+      1
+    );
+
+    const combinations = Math.pow(charsetSize, password.length);
 
     const speeds = {
       slow: Math.pow(10, 6), // 10^6 attempts/s
